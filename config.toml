@@ -36,4 +36,5 @@ menu_items = [
     
     # set newtab to true to make the link open in new tab
     {name = "github", url = "https://github.com/raSTARgfx", newtab = true},
+    {name = "errata", url = "$BASE_URL/pages/errata"},
 ]
