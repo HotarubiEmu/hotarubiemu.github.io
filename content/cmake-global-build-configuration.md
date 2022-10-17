@@ -1,6 +1,9 @@
 +++
 title = "CMake: Global Build Configuration"
 date = 2022-10-16
+
+[taxonomies]
+tags = ["c++", "cmake"]
 +++
 
 Hotarubi uses CMake for cross-platform targets including Windows and Linux. While CMake isn't my first choice, it is the most obvious one for C++ projects for many reasons outside the scope of this post.
