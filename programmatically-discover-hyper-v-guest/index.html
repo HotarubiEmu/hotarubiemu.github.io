@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title></title>
+    
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="robots" content="noodp"/>
+
+    <link rel="stylesheet" href="https://hotarubiemu.github.io/style.css">
+    <link rel="stylesheet" href="https://hotarubiemu.github.io/color/pink.css">
+
+        <link rel="stylesheet" href="https://hotarubiemu.github.io/color/background_dark.css">
+    
+    <link rel="stylesheet" href="https://hotarubiemu.github.io/font-hack.css">
+
+    </head>
+
+<body class="">
+<div class="container">
+    
+    <header class="header">
+        <div class="header__inner">
+            <div class="header__logo">
+                    
+                <a href="https://hotarubiemu.github.io/" style="text-decoration: none;">
+                    <div class="logo">
+                      
+                            Hotarubi
+                        
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        
+        
+                <nav class="menu">
+            <ul class="menu__inner">
+                <li class="active"><a href="https://hotarubiemu.github.io/">blog</a></li>
+            
+                <li><a href="https://hotarubiemu.github.io//tags">tags</a></li>
+            
+                <li><a href="https://github.com/raSTARgfx" target="_blank" rel="noopener noreferrer">github</a></li>
+            
+                <li><a href="https://hotarubiemu.github.io//pages/errata">errata</a></li>
+            </ul>
+        </nav>
+    
+    
+        
+    </header>
+    
+
+    <div class="content">
+        
+    <div class="post">
+        
+    <h1 class="post-title"><a href="https://hotarubiemu.github.io/programmatically-discover-hyper-v-guest/">Programmatically Discover Hyper-V Guests</a></h1>
+    <div class="post-meta-inline">
+        
+    <span class="post-date">
+            2022-10-17
+        </span>
+
+    </div>
+
+    
+        <span class="post-tags-inline">
+                :: tags:&nbsp;
+                <a class="post-tag" href="https://hotarubiemu.github.io/tags/c/">#c++</a>&nbsp;
+                <a class="post-tag" href="https://hotarubiemu.github.io/tags/c/">#c</a>&nbsp;
+                <a class="post-tag" href="https://hotarubiemu.github.io/tags/x86/">#x86</a>&nbsp;
+                <a class="post-tag" href="https://hotarubiemu.github.io/tags/virtual-machines/">#virtual machines</a></span>
+    
+
+        
+        <div class="post-content">
+            <p>Hotarubi includes some fancy detection for virtual machine guests. There isn't any particular rationale for this other than I simply wanted to spend an evening working on it (I might have some ideas for it later down the road). I do imagine, however, there are other uses for this so I figured I'd write up a quick post about my not-so-straightforward journey in detecting Hyper-V guests.</p>
+<blockquote>
+<p>This post will focus specifically on Hyper-V but the ideas and methodology here can be applied to most any hypervisor.</p>
+</blockquote>
+<p>Let's start with a simple explanation of a special cpu instruction called <code>cpuid</code>. It is used on x86 and x86-64 processors to request information about the cpu the code is currently executing on. The caller specifies a sub-function of the <code>cpuid</code> instruction by passing an integer value known as a &quot;leaf&quot; in the <code>eax</code> register. <code>cpuid</code> returns information pertaining to that leaf in the <code>eax</code>, <code>ebx</code>, <code>ecx</code> and <code>edx</code> registers.</p>
+<blockquote>
+<p>There are additionally sub-sub-functions known as &quot;subleaves&quot; passed via <code>ecx</code> but most of the time we want this value to be <code>0</code> for the default subleaf. None of the <code>cpuid</code> leafs I'm using in this post require subleaves but it's worth noting their existence.</p>
+</blockquote>
+<p>Don't worry if this sounds a little low-level because most compilers support special functions called &quot;intrinsics&quot; that do the work of writing the assembly for you. Unfortunately, they're different depending on your compiler so I'll provide a quick generic version so we can be on our way:</p>
+<pre data-lang="c" style="background-color:#2b303b;color:#c0c5ce;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#b48ead;">#include </span><span>&lt;</span><span style="color:#a3be8c;">stdbool.h</span><span>&gt;</span><span>
+</span><span style="color:#b48ead;">#if defined</span><span>(_MSC_VER)</span><span>
+</span><span style="color:#b48ead;">#include </span><span>&lt;</span><span style="color:#a3be8c;">intrin.h</span><span>&gt; </span><span style="color:#65737e;">// __cpuid</span><span>
+</span><span style="color:#b48ead;">#else</span><span>
+</span><span style="color:#b48ead;">#include </span><span>&lt;</span><span style="color:#a3be8c;">cpuid.h</span><span>&gt; </span><span style="color:#65737e;">// __cpuid</span><span>
+</span><span style="color:#b48ead;">#endif</span><span>
+</span><span>
+</span><span style="color:#65737e;">// calls the cpuid instruction</span><span style="color:#65737e;">
+</span><span style="color:#65737e;">// populates the eax, ebx, ecx, and edx variables with their respective values.</span><span style="color:#65737e;">
+</span><span style="color:#65737e;">// this follows the GCC convention</span><span style="color:#65737e;">
+</span><span style="color:#b48ead;">void </span><span style="color:#8fa1b3;">cpuid</span><span>(</span><span style="color:#b48ead;">int </span><span style="color:#bf616a;">leaf</span><span>, </span><span style="color:#b48ead;">int</span><span>* </span><span style="color:#bf616a;">eax</span><span>, </span><span style="color:#b48ead;">int</span><span>* </span><span style="color:#bf616a;">ebx</span><span>, </span><span style="color:#b48ead;">int</span><span>* </span><span style="color:#bf616a;">ecx</span><span>, </span><span style="color:#b48ead;">int</span><span>* </span><span style="color:#bf616a;">edx</span><span>)</span><span>
+</span><span>{</span><span>
+</span><span style="color:#b48ead;">#if defined</span><span>(_MSC_VER) </span><span style="color:#65737e;">// MSVC</span><span>
+</span><span>  </span><span style="color:#b48ead;">int</span><span> data[</span><span style="color:#d08770;">4</span><span>];</span><span>
+</span><span>  </span><span style="color:#bf616a;">__cpuid</span><span>(data, leaf);</span><span>
+</span><span>  </span><span>
+</span><span>  *eax = data[</span><span style="color:#d08770;">0</span><span>];</span><span>
+</span><span>  *ebx = data[</span><span style="color:#d08770;">1</span><span>];</span><span>
+</span><span>  *ecx = data[</span><span style="color:#d08770;">2</span><span>];</span><span>
+</span><span>  *edx = data[</span><span style="color:#d08770;">3</span><span>];</span><span>
+</span><span style="color:#b48ead;">#else </span><span style="color:#65737e;">// GCC and Clang</span><span>
+</span><span>  </span><span style="color:#bf616a;">__cpuid</span><span>(leaf, eax, ebx, ecx, edx);</span><span>
+</span><span style="color:#b48ead;">#endif</span><span>
+</span><span>}</span><span>
+</span></code></pre>
+<p>What is important to know is that each vendor (AMD, Intel, VIA, etc) maintains their own range of cpuid leaves with some overlap (for example, AMD and Intel often use each other's leaves to avoid the need for vendor-specific duplicates of certain features like detecting SSE4 support or obtaining the CPU model).</p>
+<p>There is also a special range of leaves that both AMD and Intel essentially promise never to use because their functionality is resevered for a special purpose: <strong>hypervisors</strong>.</p>
+<blockquote>
+<p>&quot;A hypervisor (also known as a virtual machine monitor, VMM, or virtualizer) is a type of computer software, firmware or hardware that creates and runs virtual machines. A computer on which a hypervisor runs one or more virtual machines is called a host machine, and each virtual machine is called a guest machine.&quot; -<a href="https://en.wikipedia.org/wiki/Hypervisor">source</a></p>
+</blockquote>
+<p>The hypervisor range starts with leaf <code>0x40000000</code> which defines the highest accepted leaf in that range as well as a vendor name enocded as ascii in the 3 remaining 32-bit integers (which is to say, 12 characters).</p>
+<p>Before we can use this range however, we need to check for the presence of a hypervisor. That is done by checking a specific bit of the <code>ecx</code> register of the <code>0x00000001</code> leaf:</p>
+<pre data-lang="c" style="background-color:#2b303b;color:#c0c5ce;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#b48ead;">bool </span><span style="color:#8fa1b3;">hypervisor_present</span><span>(</span><span style="color:#b48ead;">void</span><span>)</span><span>
+</span><span>{</span><span>
+</span><span>  </span><span style="color:#b48ead;">int</span><span> eax, ebx, ecx, edx;</span><span>
+</span><span>  </span><span style="color:#65737e;">// this function is almost gurenteed to be supported on any processor</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// made in the past 20 years so I&#39;m assuming support for it here.</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#bf616a;">cpuid</span><span>(</span><span style="color:#d08770;">0x00000001</span><span>, &amp;eax, &amp;ebx, &amp;edx, &amp;ecx);</span><span>
+</span><span>
+</span><span>  </span><span style="color:#65737e;">// check the last bit of ecx</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// the &quot;hypervisor present&quot; bit</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">return </span><span>(ecx &gt;&gt; </span><span style="color:#d08770;">31</span><span>) &amp; </span><span style="color:#d08770;">1</span><span>;</span><span>
+</span><span>}</span><span>
+</span></code></pre>
+<p>This bit will tell us if we're in a virtual machine and whether we can use the hypervisor leaves to give us information about the environment the guest is running in. You might think to yourself &quot;Well job well done, we've programmatically figured out that we're in a virtual machine. Post complete. Roll credits!&quot;.</p>
+<p>Unfortunately, like many things in the land of Microsoft, it's not that simple. There is a curious property of some hypervisors: the host operating system runs as a virtual guest with extra privileges to manage other guests.</p>
+<p>Such is the case for Microsoft's kernel-level hypervisor. This will be true so long as virtualization support is enabled in the bios. Yes, it will be true even if your Windows install is Home edition. Whenever you have cpu virtualization support enabled Windows will boot you into a special Hyper-V guest that will set the hypervisor bit to <code>1</code>.</p>
+<p>So essentially there are two types of Hyper-V guests:</p>
+<ol>
+<li>The &quot;host&quot; guest or &quot;root partition&quot; that manages all the other guests.</li>
+<li>The &quot;guest&quot; guest or virtual machine.</li>
+</ol>
+<blockquote>
+<p>This is also apparently true for Zen though I haven't independently verified that for myself. Regardless, each hypervisor interfaces with the hypervisor bit and hypervisor leaves in their own way so consider reading the code or documentation for any you wish to detect.</p>
+</blockquote>
+<p>So we need to query the hypervisor leaves for more information about if we're a root partition or not. Before we can do that, however, we need to make sure that we <em>can</em> query the hypervisor leaves. Accessing them otherwise is undefined as the values returned by unsupported leaves can vary by vendor and cpu model:</p>
+<pre data-lang="c" style="background-color:#2b303b;color:#c0c5ce;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#b48ead;">bool </span><span style="color:#8fa1b3;">hypervisor_leaf_supported</span><span>(</span><span style="color:#b48ead;">int </span><span style="color:#bf616a;">leaf</span><span>)</span><span>
+</span><span>{</span><span>
+</span><span>  </span><span style="color:#65737e;">// we aren&#39;t going to use these but they are the 12 ascii</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// characters of the vendor name of the hypervisor in order</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">int</span><span> vendor_0, vendor_1, vendor_2;</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#65737e;">// this number represents the highest leaf in the</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// 0x40000000 range we can use for future cpuid calls</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">int</span><span> highest_hypervisor_leaf;</span><span>
+</span><span>
+</span><span>  </span><span style="color:#65737e;">// no hypervisor and therefor no hypervisor leaves.</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// on Windows this is probably because you don&#39;t</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// have virtualization enabled in the bios.</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">if </span><span>(!</span><span style="color:#bf616a;">hypervisor_present</span><span>())</span><span>
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#d08770;">false</span><span>;</span><span>
+</span><span>    </span><span>
+</span><span>  </span><span style="color:#65737e;">// ignore any leaves not in the 0x40000000 range</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">if </span><span>((leaf &amp; </span><span style="color:#d08770;">0x40000000</span><span>) != </span><span style="color:#d08770;">0x40000000</span><span>)</span><span>
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#d08770;">false</span><span>;</span><span>
+</span><span>
+</span><span>  </span><span style="color:#bf616a;">cpuid</span><span>(</span><span style="color:#d08770;">0x40000000</span><span>, &amp;highest_hypervisor_leaf, &amp;vendor_0, &amp;vendor_1, &amp;vendor_2);</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#b48ead;">return</span><span> leaf &lt;= highest_hypervisor_leaf;</span><span>
+</span><span>}</span><span>
+</span></code></pre>
+<p>Our next step is to check leaf <code>0x40000001</code>. This leaf is designed to tell us about the hypervisor cpuid interface. It's important we query this information because unlike the Intel and AMD leaves, the leaves following <code>0x4000001</code> are subject to changes and differences depending on vendor for the same leaves.</p>
+<pre data-lang="c" style="background-color:#2b303b;color:#c0c5ce;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#65737e;">// integer representation of the ascii &quot;Hv#1&quot;</span><span style="color:#65737e;">
+</span><span style="color:#b48ead;">#define </span><span>MS_HYPER_V </span><span style="color:#d08770;">0x31237628</span><span>
+</span><span>
+</span><span style="color:#b48ead;">bool </span><span style="color:#8fa1b3;">hypervisor_interface_hyperv</span><span>(</span><span style="color:#b48ead;">void</span><span>)</span><span>
+</span><span>{</span><span>
+</span><span>  </span><span style="color:#65737e;">// 4-bytes of ascii representing the interface name</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">int</span><span> interface_signature;</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#65737e;">// reserved and unused</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">int</span><span> ebx, ecx, edx;</span><span>
+</span><span>
+</span><span>  </span><span style="color:#65737e;">// hyper-v implies this leaf is supported</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// so if it&#39;s not then it&#39;s not hyper-v</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">if </span><span>(!</span><span style="color:#bf616a;">hypervisor_leaf_supported</span><span>(</span><span style="color:#d08770;">0x40000001</span><span>))</span><span>
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#d08770;">false</span><span>;</span><span>
+</span><span>
+</span><span>  </span><span style="color:#bf616a;">cpuid</span><span>(</span><span style="color:#d08770;">0x40000001</span><span>, &amp;interface_signature, &amp;ebx, &amp;ecx, &amp;edx);</span><span>
+</span><span>
+</span><span>  </span><span style="color:#65737e;">// you can opt for a string comparison here instead</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#65737e;">// just make sure you null terminate</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">return</span><span> interface_signature == MS_HYPER_V;</span><span>
+</span><span>}</span><span>
+</span></code></pre>
+<p>Now that we've got the boilerplate for detecting the Hyper-V cpuid interface and detecting hypervisor presence we need to query the Hyper-V cpuid interface for a certain value. There are two ways to do this but for now I'm going to stick to how the Linux kernel does it: <a href="https://github.com/torvalds/linux/blob/f56dbdda4322d33d485f3d30f3aabba71de9098c/arch/x86/kernel/cpu/mshyperv.c#L288-L302">by checking for cpu management support</a>.</p>
+<p>In order to do that we need to check the <a href="https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/tlfs/datatypes/hv_partition_privilege_mask"><code>HV_PARTITION_PRIVILEGE_MASK</code></a>. Thankfully Microsoft has mapped it to <code>eax</code> and <code>ebx</code> of leaf <code>0x40000003</code>. <code>eax</code> contains the lower 32 bits and <code>ebx</code> contains the upper 32 bits. We need bit 43 which would be bit 11 of the upper 32 bits and therefor bit 11 of <code>ebx</code>:</p>
+<pre data-lang="c" style="background-color:#2b303b;color:#c0c5ce;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#b48ead;">bool </span><span style="color:#8fa1b3;">hyperv_host</span><span>(</span><span style="color:#b48ead;">void</span><span>)</span><span>
+</span><span>{</span><span>
+</span><span>  </span><span style="color:#65737e;">// lower 32-bits of HV_PARTITION_PRIVILEGE_MASK</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">int</span><span> priv_mask_lower;</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#65737e;">// upper 32-bits of HV_PARTITION_PRIVILEGE_MASK</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">int</span><span> priv_mask_upper;</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#65737e;">// unused</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">int</span><span> ecx, edx;</span><span>
+</span><span>
+</span><span>  </span><span style="color:#65737e;">// no hyper-v hypervisor, so not a hyper-v guest</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">if </span><span>(!</span><span style="color:#bf616a;">hypervisor_interface_hyperv</span><span>())</span><span>
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#d08770;">true</span><span>;</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#65737e;">// we&#39;re hyper-v and support for this leaf is implied</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#bf616a;">cpuid</span><span>(</span><span style="color:#d08770;">0x40000003</span><span>, &amp;priv_mask_lower, &amp;priv_mask_upper, &amp;ecx, &amp;edx);</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#65737e;">// the cpu management bit of HV_PARTITION_PRIVILEGE_MASK</span><span style="color:#65737e;">
+</span><span>  </span><span style="color:#b48ead;">return </span><span>(priv_mask_upper &gt;&gt; </span><span style="color:#d08770;">11</span><span>) &amp; </span><span style="color:#d08770;">1</span><span>;</span><span>
+</span><span>}</span><span>
+</span></code></pre>
+<p>This is the magic bit that is only set when you are running code as the Hyper-V host. So if this bit is not set, then we are a guest.</p>
+<pre data-lang="c" style="background-color:#2b303b;color:#c0c5ce;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#b48ead;">int </span><span style="color:#8fa1b3;">main</span><span>()</span><span>
+</span><span>{</span><span>
+</span><span>  </span><span style="color:#b48ead;">if </span><span>(</span><span style="color:#bf616a;">hyperv_host</span><span>())</span><span>
+</span><span>    </span><span style="color:#96b5b4;">printf</span><span>(&quot;</span><span style="color:#a3be8c;">I&#39;m the host!</span><span>&quot;);</span><span>
+</span><span>  </span><span style="color:#b48ead;">else</span><span>
+</span><span>    </span><span style="color:#96b5b4;">printf</span><span>(&quot;</span><span style="color:#a3be8c;">I&#39;m the guest!</span><span>&quot;);</span><span>
+</span><span>  </span><span>
+</span><span>  </span><span style="color:#b48ead;">return </span><span style="color:#d08770;">0</span><span>;</span><span>
+</span><span>}</span><span>
+</span></code></pre>
+<p>And with that our yak is sufficiently shaved.</p>
+
+        </div>
+
+        
+        <div class="pagination">
+            <div class="pagination__title">
+                <span class="pagination__title-h">Thanks for reading! Read other posts?</span>
+                <hr />
+            </div>
+            <div class="pagination__buttons">
+                
+                    <span class="button next">
+                        <a href="https://hotarubiemu.github.io/cmake-global-build-configuration/">
+                            <span class="button__text">CMake: Global Build Configuration</span>&nbsp;
+                            <span class="button__icon">→</span>
+                        </a>
+                    </span>
+                </div>
+        </div>
+    
+    </div>
+
+    </div>
+
+    
+    <footer class="footer">
+        <div class="footer__inner">
+                <div class="copyright">
+                        <span>© 
+    2022
+ Powered by <a href="https://www.getzola.org/">Zola</a></span>
+                    <span class="copyright-theme">
+                        <span class="copyright-theme-sep">:: </span>
+                        Theme: <a href="https://github.com/pawroman/zola-theme-terminimal/">Terminimal</a> by pawroman
+                    </span>
+                </div>
+            </div>
+    </footer>
+    
+
+</div>
+</body>
+
+</html>

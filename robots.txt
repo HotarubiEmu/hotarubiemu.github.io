@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://hotarubiemu.github.io/sitemap.xml

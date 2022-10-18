@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title></title>
+    
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="robots" content="noodp"/>
+
+    <link rel="stylesheet" href="https://hotarubiemu.github.io/style.css">
+    <link rel="stylesheet" href="https://hotarubiemu.github.io/color/pink.css">
+
+        <link rel="stylesheet" href="https://hotarubiemu.github.io/color/background_dark.css">
+    
+    <link rel="stylesheet" href="https://hotarubiemu.github.io/font-hack.css">
+
+    </head>
+
+<body class="">
+<div class="container">
+    
+    <header class="header">
+        <div class="header__inner">
+            <div class="header__logo">
+                    
+                <a href="https://hotarubiemu.github.io/" style="text-decoration: none;">
+                    <div class="logo">
+                      
+                            Hotarubi
+                        
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        
+        
+                <nav class="menu">
+            <ul class="menu__inner">
+                <li class="active"><a href="https://hotarubiemu.github.io/">blog</a></li>
+            
+                <li><a href="https://hotarubiemu.github.io//tags">tags</a></li>
+            
+                <li><a href="https://github.com/raSTARgfx" target="_blank" rel="noopener noreferrer">github</a></li>
+            
+                <li><a href="https://hotarubiemu.github.io//pages/errata">errata</a></li>
+            </ul>
+        </nav>
+    
+    
+        
+    </header>
+    
+
+    <div class="content">
+        
+    <div class="post">
+        
+    <h1 class="post-title"><a href="https://hotarubiemu.github.io/cmake-global-build-configuration/">CMake: Global Build Configuration</a></h1>
+    <div class="post-meta-inline">
+        
+    <span class="post-date">
+            2022-10-16
+        </span>
+
+    </div>
+
+    
+        <span class="post-tags-inline">
+                :: tags:&nbsp;
+                <a class="post-tag" href="https://hotarubiemu.github.io/tags/c/">#c++</a>&nbsp;
+                <a class="post-tag" href="https://hotarubiemu.github.io/tags/cmake/">#cmake</a></span>
+    
+
+        
+        <div class="post-content">
+            <p>Hotarubi uses CMake for cross-platform targets including Windows and Linux. While CMake isn't my first choice, it is the most obvious one for C++ projects for many reasons outside the scope of this post.</p>
+<p>What sucks about CMake is the documentation is very lacking in examples and the examples out in the wild are usually not &quot;modern&quot; CMake but legacy stuff that you really should avoid if you don't want to drive yourself crazy.</p>
+<p>So today we're going to look at how Hotarubi uses CMake and hopefully this will be useful for anyone trying to start a new CMake project.</p>
+<p>Hotarubi is a very modular project. It's divided up into a number of components:</p>
+<ul>
+<li>
+<p><code>src/common</code>: A library that contains code common to all projects. This includes things like the logger, various bit manipulation, string, and file helpers among other things.</p>
+</li>
+<li>
+<p><code>src/core</code>: The core emulation logic.</p>
+</li>
+<li>
+<p><code>src/frontend</code>: Frontend code that is common to all user interfaces including the terminal.</p>
+</li>
+<li>
+<p><code>src/gui</code>: Contains code for graphical user interfaces and the entry point.</p>
+</li>
+<li>
+<p><code>src/version</code>: A special project that interfaces with Git to automatically generate headers that will be used for presenting version information to the user.</p>
+</li>
+<li>
+<p><code>src/video</code>: Code for rendering.</p>
+</li>
+<li>
+<p><code>depends</code>: Git submodules and build files for all of the projects external dependencies.</p>
+</li>
+</ul>
+<p>Each of these directories and sub-directories maintains it's own <code>CMakeLists.txt</code> so we need to first include all of them in a top-level <code>CMakeLists.txt</code>:</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># ./CMakeLists.txt</span><span>
+</span><span style="color:#65737e;"># set this to whatever suits your project</span><span>
+</span><span style="color:#96b5b4;">cmake_minimum_required</span><span>(</span><span style="color:#bf616a;">VERSION </span><span>3.16)</span><span>
+</span><span style="color:#65737e;"># set the project name</span><span>
+</span><span style="color:#96b5b4;">project</span><span>(Hotaru C CXX)</span><span>
+</span><span style="color:#65737e;"># bring in the dependencies</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(depends)</span><span>
+</span><span style="color:#65737e;"># bring in the source tree</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(src)</span><span>
+</span></code></pre>
+<p>Next we include our dependencies:</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># ./depends/CMakeLists.txt</span><span>
+</span><span style="color:#65737e;"># https://github.com/fmtlib/fmt</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(fmt)</span><span>
+</span><span style="color:#65737e;"># ...</span><span>
+</span></code></pre>
+<p>And finally our individual modules:</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># ./src/CMakeLists.txt</span><span>
+</span><span style="color:#65737e;"># static libraries</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(common)</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(core)</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(frontend)</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(version)</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(video)</span><span>
+</span><span style="color:#65737e;"># executable</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(gui)</span><span>
+</span></code></pre>
+<p>As you can imagine, having all these individual modules and external libraries makes it difficult to manage compiler settings and especially so when they share settings in common. A very WET solution would be simply to repeat these settings in every module:</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># ./src/frontend/CMakeLists.txt</span><span>
+</span><span style="color:#96b5b4;">add_library</span><span>(frontend</span><span>
+</span><span>  </span><span style="color:#65737e;"># ...</span><span>
+</span><span>)</span><span>
+</span><span>
+</span><span style="color:#96b5b4;">target_compile_options</span><span>(frontend </span><span style="color:#bf616a;">PRIVATE</span><span>
+</span><span>  </span><span style="color:#65737e;"># MSVC compiler options</span><span>
+</span><span>  $&lt;$&lt;</span><span style="color:#bf616a;">CXX_COMPILER_ID</span><span>:</span><span style="color:#bf616a;">MSVC</span><span>&gt;:/</span><span style="color:#bf616a;">W4</span><span> /</span><span style="color:#bf616a;">WX</span><span> /</span><span style="color:#bf616a;">utf</span><span>-8&gt;</span><span>
+</span><span>  </span><span style="color:#65737e;"># Clang and GCC</span><span>
+</span><span>  $&lt;$&lt;</span><span style="color:#bf616a;">NOT</span><span>:$&lt;</span><span style="color:#bf616a;">CXX_COMPILER_ID</span><span>:</span><span style="color:#bf616a;">MSVC</span><span>&gt;&gt;:-</span><span style="color:#bf616a;">Wall</span><span> -</span><span style="color:#bf616a;">Wextra</span><span> -</span><span style="color:#bf616a;">Werror</span><span>&gt;</span><span>
+</span><span>)</span><span>
+</span><span>
+</span><span style="color:#96b5b4;">target_include_directories</span><span>(frontend </span><span style="color:#bf616a;">PRIVATE</span><span>
+</span><span>  &quot;$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">PROJECT_SOURCE_DIR</span><span style="color:#a3be8c;">}/src</span><span>&quot;</span><span>
+</span><span>)</span><span>
+</span><span>
+</span><span style="color:#96b5b4;">target_link_libraries</span><span>(frontend </span><span style="color:#bf616a;">PRIVATE</span><span>
+</span><span>  fmt::fmt</span><span>
+</span><span>  </span><span style="color:#65737e;"># ...</span><span>
+</span><span>)</span><span>
+</span></code></pre>
+<p>But now if I want to enable any additional settings I have to edit 6 <code>CMakeLists.txt</code> and that sucks. Instead it would be nicer to define some global settings and then add any module-specific settings on a per-project basis. For exmaple, perhaps I'd like to link <code>fmt</code> with every project while also having private dependencies for managing the dependency chain of the various <code>src/</code> projects. </p>
+<p>You might have noticed that <code>PRIVATE</code> is peppered throughout those settings. We obviosly don't want these settings to be private. The next obvious choice is <code>PUBLIC</code> and if we set <code>target_include_directories</code> to <code>PUBLIC</code> it might have the effect of making that directory visible to all projects but we still need to associate it with a project that includes source files (<code>frontend</code> in this case) so it's not a very elegant solution.</p>
+<p>Instead we can use a slightly lesser known setting <code>INTERFACE</code>:</p>
+<blockquote>
+<p>Creates an Interface Library. An INTERFACE library target does not compile sources and does not produce a library artifact on disk. However, it may have properties set on it and it may be installed and exported.
+-<a href="https://cmake.org/cmake/help/latest/command/add_library.html#interface-libraries">source</a></p>
+</blockquote>
+<p>Creating an interface library is useful to us because unlike normal libraries we don't need to associate any files with it:</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># creates an interface library called &quot;ProjectConfiguration&quot;</span><span>
+</span><span style="color:#96b5b4;">add_library</span><span>(ProjectConfiguration </span><span style="color:#bf616a;">INTERFACE</span><span>)</span><span>
+</span></code></pre>
+<p>We could just include this in our top-level <code>CMakeLists.txt</code> but I like to keep it in a separate file in <code>.cmake/build_configuration.cmake</code>. This isn't required, it's just how I choose to organize things (actually I believe convention is to call the directory <code>CMake</code> but I like to hide these directories from an <code>ls</code> command because they're mostly noise to me).</p>
+<p>If you do decide to put it in a separate place then just modify the top-level <code>CMakeLists.txt</code> to include this file before our modules:</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># ./CMakeLists.txt</span><span>
+</span><span style="color:#65737e;"># set this to whatever suits your project</span><span>
+</span><span style="color:#96b5b4;">cmake_minimum_required</span><span>(</span><span style="color:#bf616a;">VERSION </span><span>3.16)</span><span>
+</span><span style="color:#65737e;"># set the project name</span><span>
+</span><span style="color:#96b5b4;">project</span><span>(Hotaru C CXX)</span><span>
+</span><span style="color:#65737e;"># bring in our global build configuration</span><span>
+</span><span style="color:#b48ead;">include</span><span>(.cmake/project_configuration.cmake)</span><span>
+</span><span style="color:#65737e;"># bring in the dependencies</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(depends)</span><span>
+</span><span style="color:#65737e;"># bring in the source tree</span><span>
+</span><span style="color:#96b5b4;">add_subdirectory</span><span>(src)</span><span>
+</span></code></pre>
+<p>Then we can just create <code>.cmake/build_configuration.cmake</code> and populate it with our interface library just like any normal library (minus the source files, of course):</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># ./.cmake/build_configuration.cmake</span><span>
+</span><span style="color:#65737e;"># https://cmake.org/cmake/help/latest/variable/CMAKE_CXX_STANDARD_REQUIRED.html</span><span>
+</span><span style="color:#96b5b4;">set</span><span>(</span><span style="color:#bf616a;">CMAKE_CXX_STANDARD_REQUIRED </span><span>ON)</span><span>
+</span><span>
+</span><span style="color:#65737e;"># create an interface that will be used for the entire project</span><span>
+</span><span style="color:#96b5b4;">add_library</span><span>(ProjectConfiguration </span><span style="color:#bf616a;">INTERFACE</span><span>)</span><span>
+</span><span>
+</span><span style="color:#65737e;"># global compiler settings</span><span>
+</span><span style="color:#96b5b4;">target_compile_options</span><span>(ProjectConfiguration </span><span style="color:#bf616a;">INTERFACE</span><span>
+</span><span>  </span><span style="color:#65737e;"># MSVC compiler options</span><span>
+</span><span>  $&lt;$&lt;</span><span style="color:#bf616a;">CXX_COMPILER_ID</span><span>:</span><span style="color:#bf616a;">MSVC</span><span>&gt;:/</span><span style="color:#bf616a;">W4</span><span> /</span><span style="color:#bf616a;">WX</span><span> /</span><span style="color:#bf616a;">utf</span><span>-8&gt;</span><span>
+</span><span>  </span><span style="color:#65737e;"># Clang and GCC</span><span>
+</span><span>  $&lt;$&lt;</span><span style="color:#bf616a;">NOT</span><span>:$&lt;</span><span style="color:#bf616a;">CXX_COMPILER_ID</span><span>:</span><span style="color:#bf616a;">MSVC</span><span>&gt;&gt;:-</span><span style="color:#bf616a;">Wall</span><span> -</span><span style="color:#bf616a;">Wextra</span><span> -</span><span style="color:#bf616a;">Werror</span><span>&gt;</span><span>
+</span><span>)</span><span>
+</span><span>
+</span><span style="color:#65737e;"># global include directories</span><span>
+</span><span style="color:#96b5b4;">target_include_directories</span><span>(ProjectConfiguration </span><span style="color:#bf616a;">INTERFACE </span><span>
+</span><span>  &quot;$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">PROJECT_SOURCE_DIR</span><span style="color:#a3be8c;">}/src</span><span>&quot;</span><span>
+</span><span>)</span><span>
+</span><span>
+</span><span style="color:#65737e;"># global features</span><span>
+</span><span style="color:#96b5b4;">target_compile_features</span><span>(ProjectConfiguration </span><span style="color:#bf616a;">INTERFACE</span><span>
+</span><span>  cxx_std_20</span><span>
+</span><span>)</span><span>
+</span><span>
+</span><span style="color:#65737e;"># global linked libraries</span><span>
+</span><span style="color:#96b5b4;">target_link_libraries</span><span>(ProjectConfiguration </span><span style="color:#bf616a;">INTERFACE</span><span>
+</span><span>  fmt::fmt</span><span>
+</span><span>)</span><span>
+</span></code></pre>
+<p>Finally we can just link our build configuration library with all our projects and put it in the back of our minds where it belongs:</p>
+<pre data-lang="cmake" style="background-color:#2b303b;color:#c0c5ce;" class="language-cmake "><code class="language-cmake" data-lang="cmake"><span style="color:#65737e;"># create the frontend library</span><span>
+</span><span style="color:#96b5b4;">add_library</span><span>(frontend</span><span>
+</span><span>  </span><span style="color:#65737e;"># ...</span><span>
+</span><span>)</span><span>
+</span><span>
+</span><span style="color:#65737e;"># link our dependencies</span><span>
+</span><span style="color:#96b5b4;">target_link_libraries</span><span>(frontend </span><span style="color:#bf616a;">PRIVATE</span><span>
+</span><span>  ProjectConfiguration</span><span>
+</span><span>  common</span><span>
+</span><span>  core</span><span>
+</span><span>  version</span><span>
+</span><span>)</span><span>
+</span></code></pre>
+
+        </div>
+
+        
+        <div class="pagination">
+            <div class="pagination__title">
+                <span class="pagination__title-h">Thanks for reading! Read other posts?</span>
+                <hr />
+            </div>
+            <div class="pagination__buttons">
+                    <span class="button previous">
+                        <a href="https://hotarubiemu.github.io/programmatically-discover-hyper-v-guest/">
+                            <span class="button__icon">←</span>&nbsp;
+                            <span class="button__text">Programmatically Discover Hyper-V Guests</span>
+                        </a>
+                    </span>
+                
+                
+                    <span class="button next">
+                        <a href="https://hotarubiemu.github.io/using-driver-information-as-a-lesson-in-vulkan-structure-chains/">
+                            <span class="button__text">Using Driver Information As A Lesson In Vulkan Structure Chains</span>&nbsp;
+                            <span class="button__icon">→</span>
+                        </a>
+                    </span>
+                </div>
+        </div>
+    
+    </div>
+
+    </div>
+
+    
+    <footer class="footer">
+        <div class="footer__inner">
+                <div class="copyright">
+                        <span>© 
+    2022
+ Powered by <a href="https://www.getzola.org/">Zola</a></span>
+                    <span class="copyright-theme">
+                        <span class="copyright-theme-sep">:: </span>
+                        Theme: <a href="https://github.com/pawroman/zola-theme-terminimal/">Terminimal</a> by pawroman
+                    </span>
+                </div>
+            </div>
+    </footer>
+    
+
+</div>
+</body>
+
+</html>
